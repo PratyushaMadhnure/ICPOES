@@ -23,7 +23,7 @@ class OESData:
     calib: dict = None
     calib_best: dict = None
     calibrated: pd.DataFrame = None
-    ucalibrated = pd.DataFrame = None
+    ucalibrated: pd.DataFrame = None
 
 class OESAnalysis:
     def __init__(self, f):
@@ -119,8 +119,11 @@ class OESAnalysis:
                 axs[row, i].axis('off')
                 
     def apply_calibration(self, sample_dilution=40):
+        index = [c for c in self.data.crm.columns if c[0] in self.elements.difference(self.exclude_elements)]
+        uindex = [(*i, 'value') for i in index] + [(*i, 'CI95') for i in index]
+
         calibrated = pd.DataFrame(
-            columns=pd.MultiIndex.from_product((list(self.elements.difference(self.exclude_elements)), ['value', 'CI95'])), 
+            columns=pd.MultiIndex.from_tuples(uindex), 
             index=[i for i in self.data.raw.index if i not in self.data.crm_meas.index]
             )
 
@@ -130,19 +133,23 @@ class OESAnalysis:
             raw = self.data.raw.loc[calibrated.index, id]
             value, ci95, _ = cal.predict(raw)
             
-            calibrated[(element, 'value')] = value    
-            calibrated[(element, 'CI95')] = ci95
+            calibrated.loc[:, idx[element, :, 'value']] = value    
+            calibrated.loc[:, idx[element, :, 'CI95']] = ci95.values
             # calibrated[(element, 'uvalue')] = unp.uarray(value.ravel(), ci95.values.ravel())
             
         ucalibrated = pd.DataFrame(
-            columns=list(self.elements.difference(self.exclude_elements)), 
-            index=[i for i in self.data.raw.index if i not in self.data.crm_meas.index]
+            columns=pd.MultiIndex.from_tuples(index),
+            index=calibrated.index
             )
 
-        ucalibrated.loc[:,:] = unp.uarray(calibrated.loc[:, idx[:, 'value']].values, calibrated.loc[:, idx[:, 'CI95']].values / 2)
-        
+        els = list(ucalibrated.columns.levels[0])
+
+        ucalibrated.loc[:, els] = unp.uarray(calibrated.loc[:, idx[els, :, 'value']].values, calibrated.loc[:, idx[els, :, 'CI95']].values / 2)
+
         self.data.calibrated = calibrated * sample_dilution
         self.data.ucalibrated = ucalibrated * sample_dilution
+
+        return self.data.ucalibrated
         
 class seawater(OESAnalysis):
     def __init__(self, f):
