@@ -16,6 +16,8 @@ def load(f):
     
     # remove special characters
     dat = dat.apply(lambda x: x.str.replace(' !', ''))
+    dat = dat.apply(lambda x: x.str.replace(' u', ''))
+    dat = dat.apply(lambda x: x.str.replace(' o', ''))
     dat = dat.apply(lambda x: pd.to_numeric(x, errors='coerce'))
     
     dat.columns = pd.MultiIndex.from_tuples([c[:3] for c in dat.columns.str.split(' ', expand=True)])
