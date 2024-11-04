@@ -125,7 +125,7 @@ class OESAnalysis:
         calibrated = pd.DataFrame(
             columns=pd.MultiIndex.from_tuples(uindex), 
             index=[i for i in self.data.raw.index if i not in self.data.crm_meas.index]
-            )
+            ).sort_index(axis=1)
 
         for element, id in self.data.calib_best.items():
             cal = self.data.calib[id]
@@ -150,6 +150,21 @@ class OESAnalysis:
         self.data.ucalibrated = ucalibrated * sample_dilution
 
         return self.data.ucalibrated
+    
+    def save_data(self, out_file):
+        self.data.calibrated.to_csv(out_file)
+    
+    @classmethod
+    def process_data(cls, file, calibration_file=None, sample_dilution_factor=40, save_location=None):
+        instance = cls(file)
+        instance.load_crm(calibration_file)
+        instance.subtract_blank()
+        instance.drift_correct()
+        instance.calibrate()
+        instance.apply_calibration(sample_dilution_factor)
+        if save_location:
+            instance.save_data(save_location)
+        return instance.data.ucalibrated
         
 class seawater(OESAnalysis):
     def __init__(self, f):
