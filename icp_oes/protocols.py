@@ -3,6 +3,9 @@ import pandas as pd
 from dataclasses import dataclass
 from importlib import resources
 import matplotlib.pyplot as plt
+import uncertainties.unumpy as unp
+
+idx = pd.IndexSlice
 
 from . import agilent
 from . import calibration
@@ -20,11 +23,13 @@ class OESData:
     calib: dict = None
     calib_best: dict = None
     calibrated: pd.DataFrame = None
+    ucalibrated = pd.DataFrame = None
 
 class OESAnalysis:
     def __init__(self, f):
         self.f = f
         self.data = OESData(raw=agilent.load(f))
+        self.data.blank_subtracted = self.data.raw
         self.elements = set(self.data.raw.columns.levels[0])
         self.exclude_elements = set()
     
@@ -112,6 +117,32 @@ class OESAnalysis:
                 
             for i in range(col+1, ncol):
                 axs[row, i].axis('off')
+                
+    def apply_calibration(self, sample_dilution=40):
+        calibrated = pd.DataFrame(
+            columns=pd.MultiIndex.from_product((list(self.elements.difference(self.exclude_elements)), ['value', 'CI95'])), 
+            index=[i for i in self.data.raw.index if i not in self.data.crm_meas.index]
+            )
+
+        for element, id in self.data.calib_best.items():
+            cal = self.data.calib[id]
+            
+            raw = self.data.raw.loc[calibrated.index, id]
+            value, ci95, _ = cal.predict(raw)
+            
+            calibrated[(element, 'value')] = value    
+            calibrated[(element, 'CI95')] = ci95
+            # calibrated[(element, 'uvalue')] = unp.uarray(value.ravel(), ci95.values.ravel())
+            
+        ucalibrated = pd.DataFrame(
+            columns=list(self.elements.difference(self.exclude_elements)), 
+            index=[i for i in self.data.raw.index if i not in self.data.crm_meas.index]
+            )
+
+        ucalibrated.loc[:,:] = unp.uarray(calibrated.loc[:, idx[:, 'value']].values, calibrated.loc[:, idx[:, 'CI95']].values / 2)
+        
+        self.data.calibrated = calibrated * sample_dilution
+        self.data.ucalibrated = ucalibrated * sample_dilution
         
 class seawater(OESAnalysis):
     def __init__(self, f):
