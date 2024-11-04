@@ -162,7 +162,7 @@ class OESAnalysis:
         instance.drift_correct()
         instance.calibrate()
         instance.apply_calibration(sample_dilution_factor)
-        if save_location:
+        if save_location is not None:
             instance.save_data(save_location)
         return instance.data.ucalibrated
         
