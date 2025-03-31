@@ -1,2 +1,4 @@
 *.pyc
 *.egg-info/*
+OES_data/*
+.DS_Store
